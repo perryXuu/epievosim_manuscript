@@ -1,0 +1,8 @@
+#network_generator.py -popsize 5 -wkdir /Users/px54/Documents/TB_software/manuscript_test/gisaid_23Oct_24Mar11/ -method user_input -path_network /Users/px54/Documents/TB_software/manuscript_test/gisaid_23Oct_24Mar11/try.ntwk
+# GMT Tue Apr  2 18:59:34 2024
+# 
+0 1 2 4
+1 3 4
+2 4
+4
+3

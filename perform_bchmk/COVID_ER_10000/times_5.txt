@@ -1,0 +1,10 @@
+bash run.sh > ${wk_dir}/bash_log.txt 2>&1  36.31s user 1.00s system 98% cpu 38.003 total
+bash run.sh > ${wk_dir}/bash_log.txt 2>&1  36.68s user 1.06s system 98% cpu 38.320 total
+bash run.sh > ${wk_dir}/bash_log.txt 2>&1  36.11s user 0.96s system 98% cpu 37.656 total
+bash run.sh > ${wk_dir}/bash_log.txt 2>&1  36.35s user 1.09s system 98% cpu 38.020 total
+bash run.sh > ${wk_dir}/bash_log.txt 2>&1  36.35s user 1.24s system 98% cpu 38.173 total
+bash run.sh > ${wk_dir}/bash_log.txt 2>&1  36.37s user 1.16s system 98% cpu 38.105 total
+bash run.sh > ${wk_dir}/bash_log.txt 2>&1  36.72s user 1.13s system 98% cpu 38.402 total
+bash run.sh > ${wk_dir}/bash_log.txt 2>&1  36.63s user 1.24s system 98% cpu 38.446 total
+bash run.sh > ${wk_dir}/bash_log.txt 2>&1  36.19s user 1.25s system 98% cpu 38.017 total
+bash run.sh > ${wk_dir}/bash_log.txt 2>&1  36.61s user 1.09s system 98% cpu 38.222 total

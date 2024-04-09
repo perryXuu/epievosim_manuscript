@@ -1,0 +1,36 @@
+// Initial random seed:
+1928222492630
+
+// RunInitializeCallbacks():
+initializeSLiMModelType(modelType = 'nonWF');
+initializeSLiMOptions(nucleotideBased = T);
+initializeTreeSeq();
+initializeAncestralNucleotides("TTGACCGATGACCCCGGTTC...");
+initializeRecombinationRate(0);
+initializeMutationTypeNuc(0, 1, "f", 0);
+initializeGenomicElementType(0, m0, 1);
+initializeMutationTypeNuc(1, 1, "f", 0);
+initializeGenomicElementType(1, m1, 1);
+initializeGenomicElement(g0, 0, 700238);
+initializeGenomicElement(g1, 700239, 701188);
+initializeGenomicElement(g0, 701189, 1413959);
+initializeGenomicElement(g1, 1413960, 1415839);
+initializeGenomicElement(g0, 1415840, 1450696);
+initializeGenomicElement(g1, 1450697, 1451778);
+initializeGenomicElement(g0, 1451779, 1977968);
+initializeGenomicElement(g1, 1977969, 1979566);
+initializeGenomicElement(g0, 1979567, 2740708);
+initializeGenomicElement(g1, 2740709, 2742183);
+initializeGenomicElement(g0, 2742184, 2990705);
+initializeGenomicElement(g1, 2990706, 2991115);
+initializeGenomicElement(g0, 2991116, 3209405);
+initializeGenomicElement(g1, 3209406, 3211744);
+initializeGenomicElement(g0, 3211745, 3212969);
+initializeGenomicElement(g1, 3212970, 3213853);
+initializeGenomicElement(g0, 3213854, 3216360);
+initializeGenomicElement(g1, 3216361, 3216890);
+initializeGenomicElement(g0, 3216891, 4411531);
+
+// Starting run at tick <start>:
+1 
+

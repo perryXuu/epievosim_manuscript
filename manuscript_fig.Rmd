@@ -1,0 +1,1168 @@
+---
+title: "manuscript_fig"
+output: html_document
+date: "2024-03-20"
+---
+```{R}
+library("ggplot2")
+library("ggtree")
+library("ape")
+library("lubridate")
+library("ggh4x")
+```
+Functions needed for plotting the tree
+```{R}
+assign_id <- function(meta_df, g1, id_value, new_layer) {
+  nodes_num = length(nodeId(g1))
+  which_root = 0
+  ancestor_ids = c()
+  for (i in 1:nodes_num) {
+    ancestor_id = ancestor(g1, i)
+    ancestor_ids = c(ancestor_ids, ancestor_id)
+  }
+  new_new_layer = c()
+  for (i in new_layer) {
+    ancestor_id = ancestor(g1, i)
+    
+    if (is.na(ancestor_id)) {
+      child_ids = which(ancestor_ids==i)
+      id_value[i,]$ori_id = meta_df[which(meta_df$node_id %in% id_value[child_ids,]$ori_id),]$parent_id[1]
+      #return(id_value)
+    }
+    else {
+      new_new_layer = c(new_new_layer, ancestor_id)
+      if (i > nTips(g1)) {
+        child_ids = which(ancestor_ids==i)
+        id_value[i,]$ori_id = meta_df[which(meta_df$node_id %in% id_value[child_ids,]$ori_id),]$parent_id[1]
+      }
+      else {
+        name = labels(g1)[i]
+        id_value[i,]$ori_id = meta_df[which(meta_df$name==name),]$node_id
+      }
+    }
+  }
+  new_new_layer = unique(new_new_layer)
+  if (any(is.na(id_value$ori_id))) {
+    if (is.null(new_new_layer))
+    {
+      id_value[which(is.na(id_value$ori_id)),]$ori_id = -1
+    }
+    return(assign_id(meta_df, g1, id_value, new_new_layer))
+  }
+  else {
+    return(id_value)
+  }
+}
+
+
+assign_color <- function(meta_df, id_value) {
+  nodes_num = length(nodeId(g1))
+  #trans_df = data.frame(dr = rep(NA, nodes_num))
+  for (i in 1:nodes_num) {
+    if (id_value[i,]$ori_id==-1)
+    {
+      id_value[i,]$color = "grey"
+      #trans_df[i,1] = "grey"
+    }
+    else
+    {
+      #trans_df[i,1] = meta_df[which(meta_df$node_id==id_value[i,]$ori_id),]$color_trait 
+      id_value[i,]$color = meta_df[which(meta_df$node_id==id_value[i,]$ori_id),]$color_trait 
+      id_value[i,]$label_nm = meta_df[which(meta_df$node_id==id_value[i,]$ori_id),]$name 
+    }
+  }
+  return(id_value)
+}
+
+
+assign_dr <- function(meta_df, id_value, dr_id, n_trans) {
+  col_id = i + 6 + n_trans
+  nodes_num = length(nodeId(g1))
+  dr_df = data.frame(dr = rep(NA, nodes_num))
+  colnames(dr_df) = paste0("dr", dr_id)
+  for (i in 1:nodes_num) {
+    #dr_df[i,1] = meta_df[which(meta_df$node_id==id_value[i,]$ori_id),col_id]
+    if (length(which(meta_df$node_id==id_value[i,]$ori_id))>0){
+      dr_df[i,1] = meta_df[which(meta_df$node_id==id_value[i,]$ori_id),col_id]
+    }
+    else {
+      dr_df[i,1] = 0
+    }
+  }
+  id_value = cbind(id_value, dr_df)
+  return(id_value)
+}
+```
+
+
+## Example 1
+Read the data
+```{R}
+path_main = "/Users/px54/Documents/TB_software/manuscript_test/example1/"
+sim_size = 10
+seed_size = 1
+popsize = 10000
+
+seir_default <- data.frame(
+  Susceptible = popsize - seed_size,
+  Exposed = 0,
+  Infected = seed_size,
+  Recovered = 0
+)
+
+seir_data <- read.csv(paste0(path_main, "1/SEIR_trajectory.csv.gz"), header = F, sep = ",")
+colnames(seir_data) <- c("Susceptible", "Exposed", "Infected", "Recovered")
+
+seir_data <- rbind(seir_default, seir_data)
+
+length_gen = nrow(seir_data)
+seir_data$rep = rep(1, length_gen)
+seir_data$generation = 1:length_gen
+p1 <- ggplot(seir_data)  + annotate("rect", xmin = 250, xmax = 500, ymin = -Inf, ymax = Inf, 
+           fill = "#F5B7B1", alpha = 0.2) + 
+  annotate("rect", xmin = 500, xmax = 730, ymin = -Inf, ymax = Inf, 
+           fill = "#D5F5E3", alpha = 0.3) + 
+    scale_color_manual(name='States',
+                     breaks=c('susceptible', 'exposed', 'infected', 'recovered', 'avg_s', 'avg_e', 'avg_i', 'avg_r'),
+                     values=c('susceptible'='steelblue2','exposed'='#FFD700', 'infected'='tomato', 'recovered'='springgreen',
+                              'avg_s'="midnightblue", 'avg_e'='yellow', 'avg_i'='red4', 'avg_r'='springgreen4'),
+                     labels = c('susceptible'='Susceptible','exposed'='Exposed', 'infected'='Infected', 'recovered'='Recovered',
+                              'avg_s'="Susceptible", 'avg_e'='Exposed', 'avg_i'='Infected', 'avg_r'='Recovered')) +
+  geom_line(data = seir_data, aes(x = generation, y=Exposed, color='exposed', alpha = 0.4)) +
+  geom_line(data = seir_data, aes(x = generation, y=Susceptible, color='susceptible', alpha = 0.4)) +
+  geom_line(data = seir_data, aes(x = generation, y=Infected, color='infected', alpha = 0.4)) +
+  geom_line(data = seir_data, aes(x = generation, y=Recovered, color='recovered', alpha = 0.4))
+
+outbreaks = 1
+for (sim in 2:sim_size)
+{
+  seir_data_now <- read.csv(paste0(path_main, sim, "/SEIR_trajectory.csv.gz"), header = F, sep = ",")
+  colnames(seir_data_now) <- c("Susceptible", "Exposed", "Infected", "Recovered")
+  seir_data_now <- rbind(seir_default, seir_data_now)
+  length_gen = nrow(seir_data_now)
+  seir_data_now$rep = rep(sim, nrow(seir_data_now))
+  seir_data_now$generation = 1:length_gen
+  if (seir_data_now[100,]$Exposed + seir_data_now[100,]$Infected > 0)
+  {
+    outbreaks = outbreaks + 1
+    p1 <- p1 + geom_line(data = seir_data_now, aes(x = generation, y=Exposed, color='exposed', alpha = 0.4)) +
+      geom_line(data = seir_data_now, aes(x = generation, y=Susceptible, color='susceptible', alpha = 0.4)) +
+      geom_line(data = seir_data_now, aes(x = generation, y=Infected, color='infected', alpha = 0.4)) +
+      geom_line(data = seir_data_now, aes(x = generation, y=Recovered, color='recovered', alpha = 0.4))
+    seir_data <- rbind(seir_data, seir_data_now)
+  }
+}
+
+avg_s = c()
+avg_e = c()
+avg_i = c()
+avg_r = c()
+
+for (i in 1:length_gen)
+{
+  avg_s = c(avg_s, sum(seir_data[seir_data$generation==i,]$Susceptible) / outbreaks)
+  avg_e = c(avg_e, sum(seir_data[seir_data$generation==i,]$Exposed) / outbreaks)
+  avg_i = c(avg_i, sum(seir_data[seir_data$generation==i,]$Infected) / outbreaks)
+  avg_r = c(avg_r, sum(seir_data[seir_data$generation==i,]$Recovered) / outbreaks)
+}
+
+p1 <- p1 + geom_line(aes(x=1:length_gen, y=avg_s, color='avg_s')) + 
+  geom_line(aes(x=1:length_gen, y=avg_i, color='avg_i')) + geom_line(aes(x=1:length_gen, y=avg_r, color="avg_r")) + 
+  geom_line(aes(x=1:length_gen, y=avg_e, color='avg_e')) +
+  theme_bw() + theme(panel.grid=element_blank(), axis.title.x = element_text(size = 16),
+  axis.text.x = element_text(size = 14),
+  axis.text.y = element_text(size = 14),
+  axis.title.y = element_text(size = 16),
+  legend.text=element_text(size=12),
+  legend.title=element_text(size=13)) +
+  xlim(NA, 730) + labs(x="Days",y="Inidividuals") + guides(alpha="none")
+
+p1 <- p1 + annotate("text", x = 375, y = popsize * 0.95, label="Treatment 1", color='#808080', size = 14/.pt) +
+    annotate("text", x = 615, y = popsize * 0.95, label="Treatment 2", color='#808080', size = 14/.pt) +
+    scale_x_continuous(expand = c(0, 0)) +  # Remove x-axis padding
+    scale_y_continuous(expand = c(0, 0))
+
+
+
+suppressWarnings(print(p1))
+suppressWarnings(ggsave("/Users/px54/Documents/TB_software/manuscript_test/seir_exp1.pdf", plot = p1, width = 6, height = 3.5, dpi = 300))
+
+```
+Plot the transmission tree (Preparation)
+```{R}
+#source("/Users/px54/Documents/TB_software/V2_code/codes/plot_tree.r")
+library("ape")
+library("phylobase")
+library("ggtree")
+library("ggplot2")
+require("data.table")
+```
+
+Reading data
+```{R}
+wk_dir="/Users/px54/Documents/TB_software/manuscript_test/example1/2"
+seed_size=1
+configs_file="/Users/px54/Documents/TB_software/manuscript_test/example1/test_config.json"
+n_trans=1
+n_dr=2
+seed_tree=""
+meta_df = read.csv(file.path(wk_dir, "transmission_tree_metadata.csv"), header=T, sep=",")
+colnames(meta_df)[6] <- "color_trait"
+slim_config = read.delim(configs_file, header = FALSE, sep = ":")
+n_gen = as.integer(slim_config[slim_config$V1=="n_generation",]$V2)
+meta_df$name = as.character(meta_df$name)
+```
+
+
+```{R}
+whole_phylo_output=FALSE
+if (file.exists(seed_tree))
+{
+	seed_phylo = read.tree(seed_tree)
+	whole_phylo_output = TRUE
+}
+
+for (seed_id in 1:seed_size)
+{
+  cat(paste0("Plotting seed ", seed_id - 1, "'s transmission tree..."))
+  trans_tree_file = file.path(wk_dir, "transmission_tree", paste0(seed_id - 1, ".nwk"))
+  tree_str <- paste(readLines(trans_tree_file), collapse="\n")
+  if (startsWith(tree_str, "("))
+  {
+    ## Read tree into tree object if exists
+    tree = read.tree(trans_tree_file)
+    if (length(tree$tip.label)==1)
+    {
+      cat("Doesn't support visualizing single branch tree.")
+      if (whole_phylo_output) 
+      {
+        seed_phylo <- drop.tip(seed_phylo, as.character(seed_id - 1))
+      }
+    }
+    else
+    {
+      g1 = as(tree, 'phylo4')
+      nodes_num = length(nodeId(g1))
+      
+      color_value = data.frame(color = rep("grey", nodes_num), ori_id = rep(NA, nodes_num), 
+                               label_nm = rep(NA, nodes_num),
+                               row.names = nodeId(g1))
+      
+      start_id = nTips(g1) + 1
+      
+      color_value_df = assign_color(meta_df, assign_id(meta_df, g1, color_value, 1:nTips(g1)))
+      
+      rNodeData <- data.frame(color = color_value_df[start_id:nodes_num,]$color,
+                              row.names = nodeId(g1, "internal"))
+      rTipData <- data.frame(color = color_value_df[1:nTips(g1),]$color)
+      
+      
+      if (n_dr>0)
+      {
+        for (i in 1:n_dr)
+        {
+          color_value_df = assign_dr(meta_df, color_value_df, i, n_trans)
+          dr_df = data.frame(dr = color_value_df[start_id:nodes_num, ncol(color_value_df)])
+          colnames(dr_df) = paste0("DR", i)
+          rNodeData <- cbind(rNodeData, dr_df)
+          rTipData <- cbind(rTipData, color_value_df[1:nTips(g1), ncol(color_value_df)])
+          if (ncol(color_value_df)>4)
+          {
+            df_heatmap <- color_value_df[1:nTips(g1), 4:ncol(color_value_df)]
+          }
+          else
+          {
+            df_heatmap <- data.frame(dr1=color_value_df[1:nTips(g1), 4])
+          }
+          rownames(df_heatmap) <- color_value_df[1:nTips(g1),]$label_nm
+        }
+      }
+      
+      
+      g2 = phylo4d(g1)
+      nodeData(g2) <- rNodeData
+      tipData(g2) <- rTipData
+
+      p2 <- ggtree(g2, aes(color=I(color)), ladderize = TRUE) + coord_flip()#, layout='circular')#, branch.length = 'none')
+
+
+      if (n_dr>0)
+      {
+        p3 <- gheatmap(p2, df_heatmap, offset=5, width=0.1, legend_title="Drug-resistance",
+                       custom_column_labels=c(1,2), #colnames=FALSE,
+                      colnames_offset_y=-5) + 
+            theme(plot.margin = margin(0,0,0.5,1, "cm"))#, legend.position='none')
+        p3$scales$scales <- list()
+        p3 <- p3 + scale_fill_gradient(low="white", high="orange")
+      }
+      else
+      {
+        p3 <- p2
+      }
+      
+      if (whole_phylo_output) 
+      {
+        edge_dt = as.data.frame(seed_phylo$edge)
+        setDT(edge_dt)
+        edge_dt[, edge_idx := as.integer(rownames(edge_dt))]
+        tip_dt = data.table(tip_label = seed_phylo$tip, 
+                            edge_idx = sapply(seed_phylo$tip.label, function(tip_label) which.edge(seed_phylo, tip_label)))
+        tip_dt <- tip_dt[edge_dt, on = .(edge_idx)]
+        seed_phylo <- bind.tree(seed_phylo, tree, where=tip_dt[tip_dt$tip_label==seed_id - 1]$V2, 0)
+      }
+    }
+  }
+  else
+  {
+    cat("No samples for this seed's progeny.")
+    if (whole_phylo_output) 
+    {
+      if (length(seed_phylo$tip.label)==1)
+      {
+        whole_phylo_output = FALSE
+      }
+      else
+      {
+        seed_phylo <- drop.tip(seed_phylo, as.character(seed_id - 1))
+      }
+    }
+  }
+}
+p3 <- p3 + annotate("rect", xmin = 250, xmax = 500, ymin = -Inf, ymax = Inf, 
+           fill = "#F5B7B1", alpha = 0.2) + 
+  annotate("rect", xmin = 500, xmax = 730, ymin = -Inf, ymax = Inf, 
+           fill = "#D5F5E3", alpha = 0.3)
+
+p3
+
+suppressWarnings(ggsave("/Users/px54/Documents/TB_software/manuscript_test/tree_exp1.pdf", plot = p3, width = 6, height = 3.5, dpi = 300))
+```
+
+## Example 2
+Read the contact network into a matrix
+```{R}
+ntwk_dir="/Users/px54/Documents/TB_software/manuscript_test/example2/BA_highhigh/contact_network.adjlist"
+con=file(ntwk_dir,open="r")
+alllines=readLines(con)
+lines = alllines[4:length(alllines)]
+num_hosts=length(lines)
+num_hostsminus1 = num_hosts - 1
+contact_num = data.frame(nodeid=0:num_hostsminus1, contacts=rep(0, num_hosts))
+for (i in 1:num_hosts){
+    vct_line = as.integer(unlist(strsplit(lines[i], split=" ")))
+    if (length(vct_line)>=2){
+      for (j in 2:length(vct_line))
+      {
+        contact_num[contact_num$nodeid==vct_line[1],]$contacts = contact_num[contact_num$nodeid==vct_line[1],]$contacts + 1
+        contact_num[contact_num$nodeid==vct_line[j],]$contacts = contact_num[contact_num$nodeid==vct_line[j],]$contacts + 1
+      }
+    }
+    
+}
+close(con)
+```
+
+Read seed host match file and return their degree
+```{r}
+seed_host_match = read.csv("/Users/px54/Documents/TB_software/manuscript_test/example2/BA_highhigh/seed_host_match.csv", header=T)
+seed_host_match$degree = rep(0, 5)
+seed_host_match$color = rep(" ", 5)
+colorcode = c('#440154', '#3b528b', '#21918c', '#5ec962', '#fde725')
+for (i in 1:nrow(seed_host_match))
+{
+  seed_host_match[i,]$degree = contact_num[which(contact_num$nodeid==seed_host_match[i,]$host_id),]$contacts
+  seed_host_match[i,]$color = colorcode[seed_host_match[i,]$seed + 1]
+}
+#seed_host_match$degree = contact_num[which(contact_num$nodeid==seed_host_match$host_id),]$contacts
+```
+
+
+Draw histogram
+```{r}
+
+p4 <- ggplot(contact_num, aes(x=contacts)) + geom_histogram(binwidth=1, fill='#D21F3C', color="black") + theme_bw() + 
+  theme(panel.grid=element_blank(), axis.title.x = element_text(size = 16),
+  axis.text.x = element_text(size = 14),
+  axis.text.y = element_text(size = 14),
+  axis.title.y = element_text(size = 16),
+  legend.text=element_text(size=12),
+  legend.title=element_text(size=13)) + #,
+  #panel.background = element_rect(fill = "#909090")) +
+  xlim(NA, 20) + labs(x="Contact degrees",y="Individuals")
+
+for (i in 1:nrow(seed_host_match))
+{
+  if (i==3)
+  {
+    p4 <- p4 + geom_vline(xintercept=seed_host_match[i,]$degree-0.19, color=seed_host_match[i,]$color, size=1) #+
+    #annotate("text", x=seed_host_match[i,]$degree+0.5, y=4700, label=paste(c("Seed", seed_host_match[i,]$seed), collapse=" "), angle=90, color=seed_host_match[i,]$color, size=14/.pt)
+  }
+  else
+  {
+    p4 <- p4 + geom_vline(xintercept=seed_host_match[i,]$degree, color=seed_host_match[i,]$color, size=1) #+
+    #annotate("text", x=seed_host_match[i,]$degree-0.6, y=4700, label=paste(c("Seed", seed_host_match[i,]$seed), collapse=" "), angle=90, color=seed_host_match[i,]$color, size=14/.pt)
+  }
+}
+
+p4 <- p4 + scale_y_continuous(expand=expand_scale(mult=c(0,0.05)))
+
+p4
+ggsave("/Users/px54/Documents/TB_software/manuscript_test/highhighnetwork_exp2.pdf", plot = p4, width = 4, height = 3.5, dpi = 300)
+```
+
+
+
+For High_low
+Read seed host match file and return their degree
+```{r}
+seed_host_match = read.csv("/Users/px54/Documents/TB_software/manuscript_test/example2/BA_highlow/seed_host_match.csv", header=T)
+seed_host_match$degree = rep(0, 5)
+seed_host_match$color = rep(" ", 5)
+colorcode = c('#440154', '#3b528b', '#21918c', '#5ec962', '#fde725')
+for (i in 1:nrow(seed_host_match))
+{
+  seed_host_match[i,]$degree = contact_num[which(contact_num$nodeid==seed_host_match[i,]$host_id),]$contacts
+  seed_host_match[i,]$color = colorcode[seed_host_match[i,]$seed + 1]
+}
+#seed_host_match$degree = contact_num[which(contact_num$nodeid==seed_host_match$host_id),]$contacts
+```
+
+
+Draw histogram
+```{r}
+
+p5 <- ggplot(contact_num, aes(x=contacts)) + geom_histogram(binwidth=1, fill='#D21F3C', color="black") + theme_bw() + 
+  theme(panel.grid=element_blank(), axis.title.x = element_text(size = 16),
+  axis.text.x = element_text(size = 14),
+  axis.text.y = element_text(size = 14),
+  axis.title.y = element_text(size = 16),
+  legend.text=element_text(size=12),
+  legend.title=element_text(size=13)) +
+  xlim(NA, 20) + labs(x="Contact degrees",y="Individuals")
+
+for (i in 1:nrow(seed_host_match))
+{
+  if (i==4)
+  {
+    p5 <- p5 + geom_vline(xintercept=seed_host_match[i,]$degree-0.19, color=seed_host_match[i,]$color, size=1) #+
+   # annotate("text", x=seed_host_match[i,]$degree+0.5, y=4700, label=paste(c("Seed", seed_host_match[i,]$seed), collapse=" "), angle=90, color=seed_host_match[i,]$color, size=14/.pt)
+  }
+  else if (i==5)
+  {
+    p5 <- p5 + geom_vline(xintercept=seed_host_match[i,]$degree+0.19, color=seed_host_match[i,]$color, size=1) #+
+    #annotate("text", x=seed_host_match[i,]$degree-0.5, y=3700, label=paste(c("Seed", seed_host_match[i,]$seed), collapse=" "), angle=90, color=seed_host_match[i,]$color, size=14/.pt)
+  }
+  else
+  {
+    p5 <- p5 + geom_vline(xintercept=seed_host_match[i,]$degree, color=seed_host_match[i,]$color, size=1) #+
+    #annotate("text", x=seed_host_match[i,]$degree-0.6, y=4700, label=paste(c("Seed", seed_host_match[i,]$seed), collapse=" "), angle=90, color=seed_host_match[i,]$color, size=14/.pt)
+  }
+}
+
+p5 <- p5 + scale_y_continuous(expand=expand_scale(mult=c(0,0.05)))
+
+p5
+
+ggsave("/Users/px54/Documents/TB_software/manuscript_test/highlownetwork_exp2.pdf", plot = p5, width = 4, height = 3.5, dpi = 300)
+```
+
+Draw dot plot of transmissibility
+```{r}
+seed_trait = read.csv("/Users/px54/Documents/TB_software/manuscript_test/example2/ER/seeds_trait_values.csv", header=T)
+seed_trait$color = colorcode
+p6 <- ggplot(seed_trait, aes(x=seed_id, y=transmissibility_1)) + 
+  geom_point(size=5, colour=colorcode) + 
+  theme_bw() + 
+  theme(panel.grid=element_blank(), axis.title.x = element_text(size = 16),
+  axis.text.x = element_text(size = 14),
+  axis.text.y = element_text(size = 14),
+  axis.title.y = element_text(size = 16),
+  legend.text=element_text(size=12),
+  legend.title=element_text(size=13)) + labs(x="ID of the seeds",y="Relative Transmissibility")
+
+for (i in 1:nrow(seed_trait))
+{
+    p6 <- p6 + geom_line(data=data.frame(x=c(seed_trait[i,]$seed_id, seed_trait[i,]$seed_id), y=c(0, seed_trait[i,]$transmissibility_1)), aes(x=x, y=y), colour=seed_trait[i,]$color, size=2)
+}
+p6 <- p6 + scale_y_continuous(expand=expand_scale(mult=c(0,0.1)))
+p6
+
+ggsave("/Users/px54/Documents/TB_software/manuscript_test/transmissibility_exp2.pdf", plot = p6, width = 4, height = 3.5, dpi = 300)
+```
+
+
+## Example 2 Tree
+Reading data
+For the ER!
+```{R}
+wk_dir="/Users/px54/Documents/TB_software/manuscript_test/example2/ER/4"
+seed_size=5
+configs_file="/Users/px54/Documents/TB_software/manuscript_test/example2/ER/slim.json"
+n_trans=1
+n_dr=0
+seed_tree="/Users/px54/Documents/TB_software/manuscript_test/example2/ER/seeds.nwk"
+meta_df = read.csv(file.path(wk_dir, "transmission_tree_metadata.csv"), header=T, sep=",")
+colnames(meta_df)[6] <- "color_trait"
+slim_config = read.delim(configs_file, header = FALSE, sep = ":")
+n_gen = as.integer(slim_config[slim_config$V1=="n_generation",]$V2)
+meta_df$name = as.character(meta_df$name)
+```
+
+
+```{R}
+whole_phylo_output=FALSE
+if (file.exists(seed_tree))
+{
+	seed_phylo = read.tree(seed_tree)
+	whole_phylo_output = TRUE
+}
+
+for (seed_id in 1:seed_size)
+{
+  cat(paste0("Plotting seed ", seed_id - 1, "'s transmission tree..."))
+  trans_tree_file = file.path(wk_dir, "transmission_tree", paste0(seed_id - 1, ".nwk"))
+  tree_str <- paste(readLines(trans_tree_file), collapse="\n")
+  if (startsWith(tree_str, "("))
+  {
+    ## Read tree into tree object if exists
+    tree = read.tree(trans_tree_file)
+    if (length(tree$tip.label)==1)
+    {
+      cat("Doesn't support visualizing single branch tree.")
+      if (whole_phylo_output) 
+      {
+        seed_phylo <- drop.tip(seed_phylo, as.character(seed_id - 1))
+      }
+    }
+    else
+    {
+      g1 = as(tree, 'phylo4')
+      nodes_num = length(nodeId(g1))
+      
+      color_value = data.frame(color = rep("grey", nodes_num), ori_id = rep(NA, nodes_num), 
+                               label_nm = rep(NA, nodes_num),
+                               row.names = nodeId(g1))
+      
+      start_id = nTips(g1) + 1
+      
+      color_value_df = assign_color(meta_df, assign_id(meta_df, g1, color_value, 1:nTips(g1)))
+      
+      rNodeData <- data.frame(color = color_value_df[start_id:nodes_num,]$color,
+                              row.names = nodeId(g1, "internal"))
+      rTipData <- data.frame(color = color_value_df[1:nTips(g1),]$color)
+      
+      
+      g2 = phylo4d(g1)
+      nodeData(g2) <- rNodeData
+      tipData(g2) <- rTipData
+      
+      if (whole_phylo_output) 
+      {
+        edge_dt = as.data.frame(seed_phylo$edge)
+        setDT(edge_dt)
+        edge_dt[, edge_idx := as.integer(rownames(edge_dt))]
+        tip_dt = data.table(tip_label = seed_phylo$tip, 
+                            edge_idx = sapply(seed_phylo$tip.label, function(tip_label) which.edge(seed_phylo, tip_label)))
+        tip_dt <- tip_dt[edge_dt, on = .(edge_idx)]
+        seed_phylo <- bind.tree(seed_phylo, tree, where=tip_dt[tip_dt$tip_label==seed_id - 1]$V2, 0)
+      }
+    }
+  }
+  else
+  {
+    cat("No samples for this seed's progeny.")
+    if (whole_phylo_output) 
+    {
+      if (length(seed_phylo$tip.label)==1)
+      {
+        whole_phylo_output = FALSE
+      }
+      else
+      {
+        seed_phylo <- drop.tip(seed_phylo, as.character(seed_id - 1))
+      }
+    }
+  }
+}
+
+if (whole_phylo_output) 
+{
+	write.tree(seed_phylo, file=file.path(wk_dir, "whole_transmission_tree.nwk"))
+	meta_df$name = as.character(meta_df$name)
+	g1 = as(seed_phylo, 'phylo4')
+	nodes_num = length(nodeId(g1))
+
+	color_value = data.frame(color = rep("grey", nodes_num), ori_id = rep(NA, nodes_num), 
+                       label_nm = rep(NA, nodes_num),
+                       row.names = nodeId(g1))
+
+	start_id = nTips(g1) + 1
+
+	color_value_df = assign_color(meta_df, assign_id(meta_df, g1, color_value, 1:nTips(g1)))
+  
+  rNodeData <- data.frame(color = color_value_df[start_id:nodes_num,]$color,
+                          row.names = nodeId(g1, "internal"))
+	rTipData <- data.frame(color = color_value_df[1:nTips(g1),]$color)
+  
+  g2 = phylo4d(g1)
+ 	nodeData(g2) <- rNodeData
+ 	tipData(g2) <- rTipData
+ 	p7 <- ggtree(g2, aes(color=I(color)), ladderize = TRUE, layout='circular', branch.length = 'none') +
+ 	  theme(plot.margin = margin(-1,-1,-1,-1, "cm"))
+
+ p7
+	suppressWarnings(ggsave("/Users/px54/Documents/TB_software/manuscript_test/tree_exp2_ER.pdf", plot = p7, width = 4, height = 4, dpi = 300))
+}
+
+#
+```
+For the BA high-high!
+```{R}
+wk_dir="/Users/px54/Documents/TB_software/manuscript_test/example2/BA_highhigh/9"
+seed_size=5
+configs_file="/Users/px54/Documents/TB_software/manuscript_test/example2/BA_highhigh/slim.json"
+n_trans=1
+n_dr=0
+seed_tree="/Users/px54/Documents/TB_software/manuscript_test/example2/BA_highhigh/seeds.nwk"
+meta_df = read.csv(file.path(wk_dir, "transmission_tree_metadata.csv"), header=T, sep=",")
+colnames(meta_df)[6] <- "color_trait"
+slim_config = read.delim(configs_file, header = FALSE, sep = ":")
+n_gen = as.integer(slim_config[slim_config$V1=="n_generation",]$V2)
+meta_df$name = as.character(meta_df$name)
+```
+
+
+```{R}
+whole_phylo_output=FALSE
+if (file.exists(seed_tree))
+{
+	seed_phylo = read.tree(seed_tree)
+	whole_phylo_output = TRUE
+}
+
+for (seed_id in 1:seed_size)
+{
+  cat(paste0("Plotting seed ", seed_id - 1, "'s transmission tree..."))
+  trans_tree_file = file.path(wk_dir, "transmission_tree", paste0(seed_id - 1, ".nwk"))
+  tree_str <- paste(readLines(trans_tree_file), collapse="\n")
+  if (startsWith(tree_str, "("))
+  {
+    ## Read tree into tree object if exists
+    tree = read.tree(trans_tree_file)
+    if (length(tree$tip.label)==1)
+    {
+      cat("Doesn't support visualizing single branch tree.")
+      if (whole_phylo_output) 
+      {
+        seed_phylo <- drop.tip(seed_phylo, as.character(seed_id - 1))
+      }
+    }
+    else
+    {
+      g1 = as(tree, 'phylo4')
+      nodes_num = length(nodeId(g1))
+      
+      color_value = data.frame(color = rep("grey", nodes_num), ori_id = rep(NA, nodes_num), 
+                               label_nm = rep(NA, nodes_num),
+                               row.names = nodeId(g1))
+      
+      start_id = nTips(g1) + 1
+      
+      color_value_df = assign_color(meta_df, assign_id(meta_df, g1, color_value, 1:nTips(g1)))
+      
+      rNodeData <- data.frame(color = color_value_df[start_id:nodes_num,]$color,
+                              row.names = nodeId(g1, "internal"))
+      rTipData <- data.frame(color = color_value_df[1:nTips(g1),]$color)
+      
+      
+      g2 = phylo4d(g1)
+      nodeData(g2) <- rNodeData
+      tipData(g2) <- rTipData
+      
+      if (whole_phylo_output) 
+      {
+        edge_dt = as.data.frame(seed_phylo$edge)
+        setDT(edge_dt)
+        edge_dt[, edge_idx := as.integer(rownames(edge_dt))]
+        tip_dt = data.table(tip_label = seed_phylo$tip, 
+                            edge_idx = sapply(seed_phylo$tip.label, function(tip_label) which.edge(seed_phylo, tip_label)))
+        tip_dt <- tip_dt[edge_dt, on = .(edge_idx)]
+        seed_phylo <- bind.tree(seed_phylo, tree, where=tip_dt[tip_dt$tip_label==seed_id - 1]$V2, 0)
+      }
+    }
+  }
+  else
+  {
+    cat("No samples for this seed's progeny.")
+    if (whole_phylo_output) 
+    {
+      if (length(seed_phylo$tip.label)==1)
+      {
+        whole_phylo_output = FALSE
+      }
+      else
+      {
+        seed_phylo <- drop.tip(seed_phylo, as.character(seed_id - 1))
+      }
+    }
+  }
+}
+
+if (whole_phylo_output) 
+{
+	write.tree(seed_phylo, file=file.path(wk_dir, "whole_transmission_tree.nwk"))
+	meta_df$name = as.character(meta_df$name)
+	g1 = as(seed_phylo, 'phylo4')
+	nodes_num = length(nodeId(g1))
+
+	color_value = data.frame(color = rep("grey", nodes_num), ori_id = rep(NA, nodes_num), 
+                       label_nm = rep(NA, nodes_num),
+                       row.names = nodeId(g1))
+
+	start_id = nTips(g1) + 1
+
+	color_value_df = assign_color(meta_df, assign_id(meta_df, g1, color_value, 1:nTips(g1)))
+  
+  rNodeData <- data.frame(color = color_value_df[start_id:nodes_num,]$color,
+                          row.names = nodeId(g1, "internal"))
+	rTipData <- data.frame(color = color_value_df[1:nTips(g1),]$color)
+  
+  g2 = phylo4d(g1)
+ 	nodeData(g2) <- rNodeData
+ 	tipData(g2) <- rTipData
+ 	p8 <- ggtree(g2, aes(color=I(color)), ladderize = TRUE, layout='circular', branch.length = 'none') +
+ 	  theme(plot.margin = margin(-1,-1,-1,-1, "cm"))
+
+ p8
+	suppressWarnings(ggsave("/Users/px54/Documents/TB_software/manuscript_test/tree_exp2_BAhighigh.pdf", plot = p8, width = 4, height = 4, dpi = 300))
+}
+
+#
+```
+
+For the BA high-low!
+```{R}
+wk_dir="/Users/px54/Documents/TB_software/manuscript_test/example2/BA_highlow/1"
+seed_size=5
+configs_file="/Users/px54/Documents/TB_software/manuscript_test/example2/BA_highlow/slim.json"
+n_trans=1
+n_dr=0
+seed_tree="/Users/px54/Documents/TB_software/manuscript_test/example2/BA_highhigh/seeds.nwk"
+meta_df = read.csv(file.path(wk_dir, "transmission_tree_metadata.csv"), header=T, sep=",")
+colnames(meta_df)[6] <- "color_trait"
+slim_config = read.delim(configs_file, header = FALSE, sep = ":")
+n_gen = as.integer(slim_config[slim_config$V1=="n_generation",]$V2)
+meta_df$name = as.character(meta_df$name)
+```
+
+
+```{R}
+whole_phylo_output=FALSE
+if (file.exists(seed_tree))
+{
+	seed_phylo = read.tree(seed_tree)
+	whole_phylo_output = TRUE
+}
+
+for (seed_id in 1:seed_size)
+{
+  cat(paste0("Plotting seed ", seed_id - 1, "'s transmission tree..."))
+  trans_tree_file = file.path(wk_dir, "transmission_tree", paste0(seed_id - 1, ".nwk"))
+  tree_str <- paste(readLines(trans_tree_file), collapse="\n")
+  if (startsWith(tree_str, "("))
+  {
+    ## Read tree into tree object if exists
+    tree = read.tree(trans_tree_file)
+    if (length(tree$tip.label)==1)
+    {
+      cat("Doesn't support visualizing single branch tree.")
+      if (whole_phylo_output) 
+      {
+        seed_phylo <- drop.tip(seed_phylo, as.character(seed_id - 1))
+      }
+    }
+    else
+    {
+      g1 = as(tree, 'phylo4')
+      nodes_num = length(nodeId(g1))
+      
+      color_value = data.frame(color = rep("grey", nodes_num), ori_id = rep(NA, nodes_num), 
+                               label_nm = rep(NA, nodes_num),
+                               row.names = nodeId(g1))
+      
+      start_id = nTips(g1) + 1
+      
+      color_value_df = assign_color(meta_df, assign_id(meta_df, g1, color_value, 1:nTips(g1)))
+      
+      rNodeData <- data.frame(color = color_value_df[start_id:nodes_num,]$color,
+                              row.names = nodeId(g1, "internal"))
+      rTipData <- data.frame(color = color_value_df[1:nTips(g1),]$color)
+      
+      
+      g2 = phylo4d(g1)
+      nodeData(g2) <- rNodeData
+      tipData(g2) <- rTipData
+      
+      if (whole_phylo_output) 
+      {
+        edge_dt = as.data.frame(seed_phylo$edge)
+        setDT(edge_dt)
+        edge_dt[, edge_idx := as.integer(rownames(edge_dt))]
+        tip_dt = data.table(tip_label = seed_phylo$tip, 
+                            edge_idx = sapply(seed_phylo$tip.label, function(tip_label) which.edge(seed_phylo, tip_label)))
+        tip_dt <- tip_dt[edge_dt, on = .(edge_idx)]
+        seed_phylo <- bind.tree(seed_phylo, tree, where=tip_dt[tip_dt$tip_label==seed_id - 1]$V2, 0)
+      }
+    }
+  }
+  else
+  {
+    cat("No samples for this seed's progeny.")
+    if (whole_phylo_output) 
+    {
+      if (length(seed_phylo$tip.label)==1)
+      {
+        whole_phylo_output = FALSE
+      }
+      else
+      {
+        seed_phylo <- drop.tip(seed_phylo, as.character(seed_id - 1))
+      }
+    }
+  }
+}
+
+if (whole_phylo_output) 
+{
+	write.tree(seed_phylo, file=file.path(wk_dir, "whole_transmission_tree.nwk"))
+	meta_df$name = as.character(meta_df$name)
+	g1 = as(seed_phylo, 'phylo4')
+	nodes_num = length(nodeId(g1))
+
+	color_value = data.frame(color = rep("grey", nodes_num), ori_id = rep(NA, nodes_num), 
+                       label_nm = rep(NA, nodes_num),
+                       row.names = nodeId(g1))
+
+	start_id = nTips(g1) + 1
+
+	color_value_df = assign_color(meta_df, assign_id(meta_df, g1, color_value, 1:nTips(g1)))
+  
+  rNodeData <- data.frame(color = color_value_df[start_id:nodes_num,]$color,
+                          row.names = nodeId(g1, "internal"))
+	rTipData <- data.frame(color = color_value_df[1:nTips(g1),]$color)
+  
+  g2 = phylo4d(g1)
+ 	nodeData(g2) <- rNodeData
+ 	tipData(g2) <- rTipData
+ 	p9 <- ggtree(g2, aes(color=I(color)), ladderize = TRUE, layout='circular', branch.length = 'none') +
+ 	  theme(plot.margin = margin(-1,-1,-1,-1, "cm"))
+
+ p9
+	suppressWarnings(ggsave("/Users/px54/Documents/TB_software/manuscript_test/tree_exp2_BAhighlow.pdf", plot = p9, width = 4, height = 4, dpi = 300))
+}
+
+#
+```
+
+## Plot example 2 strain distribution
+Plot the data (ER)
+```{R}
+path_main = "/Users/px54/Documents/TB_software/manuscript_test/example2/ER/"
+sim_size = 10
+seed_size = 5
+popsize = 10000
+
+strain_default <- data.frame(
+  seed0 = 1,
+  seed1 = 1,
+  seed2 = 1,
+  seed3 = 1,
+  seed4 = 1
+)
+
+strain_data <- read.csv(paste0(path_main, "1/strain_trajectory.csv.gz"), header = F, sep = ",")
+colnames(strain_data) <- c("seed0", "seed1", "seed2", "seed3", "seed4")
+
+strain_data <- rbind(strain_default, strain_data)
+
+length_gen = nrow(strain_data)
+strain_data$rep = rep(1, length_gen)
+strain_data$generation = 1:length_gen
+p10 <- ggplot(strain_data) + 
+    scale_color_manual(name='States',
+                     breaks=c('seed0', 'seed1', 'seed2', 'seed3', 'seed4'),
+                     values=c('seed0'=colorcode[1],'seed1'=colorcode[2], 'seed2'=colorcode[3], 'seed3'=colorcode[4], 'seed4'=colorcode[5])) +
+  geom_line(data = strain_data, aes(x = generation, y=seed0, color='seed0', alpha = 0.35)) +
+  geom_line(data = strain_data, aes(x = generation, y=seed1, color='seed1', alpha = 0.35)) +
+  geom_line(data = strain_data, aes(x = generation, y=seed2, color='seed2', alpha = 0.35)) +
+  geom_line(data = strain_data, aes(x = generation, y=seed3, color='seed3', alpha = 0.35)) +
+  geom_line(data = strain_data, aes(x = generation, y=seed4, color='seed4', alpha = 0.35))
+
+outbreaks = 1
+for (sim in 2:sim_size)
+{
+  strain_data_now <- read.csv(paste0(path_main, sim, "/strain_trajectory.csv.gz"), header = F, sep = ",")
+  colnames(strain_data_now) <- c("seed0", "seed1", "seed2", "seed3", "seed4")
+  strain_data_now <- rbind(strain_default, strain_data_now)
+  length_gen = nrow(strain_data_now)
+  strain_data_now$rep = rep(sim, nrow(strain_data_now))
+  strain_data_now$generation = 1:length_gen
+
+  outbreaks = outbreaks + 1
+  p10 <- p10 + geom_line(data = strain_data_now, aes(x = generation, y=seed0, color='seed0', alpha = 0.35)) +
+  geom_line(data = strain_data_now, aes(x = generation, y=seed1, color='seed1', alpha = 0.35)) +
+  geom_line(data = strain_data_now, aes(x = generation, y=seed2, color='seed2', alpha = 0.35)) +
+  geom_line(data = strain_data_now, aes(x = generation, y=seed3, color='seed3', alpha = 0.35)) +
+  geom_line(data = strain_data_now, aes(x = generation, y=seed4, color='seed4', alpha = 0.35))
+  strain_data <- rbind(strain_data, strain_data_now)
+}
+
+avg_s0 = c()
+avg_s1 = c()
+avg_s2 = c()
+avg_s3 = c()
+avg_s4 = c()
+
+for (i in 1:length_gen)
+{
+  avg_s0 = c(avg_s0, sum(strain_data[strain_data$generation==i,]$seed0) / outbreaks)
+  avg_s1 = c(avg_s1, sum(strain_data[strain_data$generation==i,]$seed1) / outbreaks)
+  avg_s2 = c(avg_s2, sum(strain_data[strain_data$generation==i,]$seed2) / outbreaks)
+  avg_s3 = c(avg_s3, sum(strain_data[strain_data$generation==i,]$seed3) / outbreaks)
+  avg_s4 = c(avg_s4, sum(strain_data[strain_data$generation==i,]$seed4) / outbreaks)
+}
+
+p10 <- p10 + geom_line(aes(x=1:length_gen, y=avg_s0, color='seed0'), size=2) + 
+  geom_line(aes(x=1:length_gen, y=avg_s1, color='seed1'), size=2) + geom_line(aes(x=1:length_gen, y=avg_s2, color="seed2"), size=2) + geom_line(aes(x=1:length_gen, y=avg_s3, color='seed3'), size=2) + geom_line(aes(x=1:length_gen, y=avg_s4, color='seed4'), size=2) +
+  theme_bw() + theme(panel.grid=element_blank(), axis.title.x = element_text(size = 16),
+  axis.text.x = element_text(size = 14),
+  axis.text.y = element_text(size = 14),
+  axis.title.y = element_text(size = 16),
+  legend.text=element_text(size=12),
+  legend.title=element_text(size=13), 
+  legend.position="none") +
+  xlim(NA, 3650) + labs(x="Years",y="Size of the progeny") + guides(alpha="none") +
+    scale_x_continuous(expand = c(0, 0), breaks=365 * (1:9), 
+                     labels = 1:9) +  # Remove x-axis padding
+    scale_y_continuous(expand = c(0, 0))
+
+p10 
+
+
+
+#suppressWarnings(print(p1))
+suppressWarnings(ggsave("/Users/px54/Documents/TB_software/manuscript_test/strain_er.pdf", plot = p10, width = 4, height = 3.5, dpi = 300))
+
+```
+
+Plot the data (BA_highhigh)
+```{R}
+path_main = "/Users/px54/Documents/TB_software/manuscript_test/example2/BA_highhigh/"
+
+strain_data <- read.csv(paste0(path_main, "1/strain_trajectory.csv.gz"), header = F, sep = ",")
+colnames(strain_data) <- c("seed0", "seed1", "seed2", "seed3", "seed4")
+
+strain_data <- rbind(strain_default, strain_data)
+
+length_gen = nrow(strain_data)
+strain_data$rep = rep(1, length_gen)
+strain_data$generation = 1:length_gen
+p11 <- ggplot(strain_data) + 
+    scale_color_manual(name='States',
+                     breaks=c('seed0', 'seed1', 'seed2', 'seed3', 'seed4'),
+                     values=c('seed0'=colorcode[1],'seed1'=colorcode[2], 'seed2'=colorcode[3], 'seed3'=colorcode[4], 'seed4'=colorcode[5])) +
+  geom_line(data = strain_data, aes(x = generation, y=seed0, color='seed0', alpha = 0.35)) +
+  geom_line(data = strain_data, aes(x = generation, y=seed1, color='seed1', alpha = 0.35)) +
+  geom_line(data = strain_data, aes(x = generation, y=seed2, color='seed2', alpha = 0.35)) +
+  geom_line(data = strain_data, aes(x = generation, y=seed3, color='seed3', alpha = 0.35)) +
+  geom_line(data = strain_data, aes(x = generation, y=seed4, color='seed4', alpha = 0.35))
+
+outbreaks = 1
+for (sim in 2:sim_size)
+{
+  strain_data_now <- read.csv(paste0(path_main, sim, "/strain_trajectory.csv.gz"), header = F, sep = ",")
+  colnames(strain_data_now) <- c("seed0", "seed1", "seed2", "seed3", "seed4")
+  strain_data_now <- rbind(strain_default, strain_data_now)
+  length_gen = nrow(strain_data_now)
+  strain_data_now$rep = rep(sim, nrow(strain_data_now))
+  strain_data_now$generation = 1:length_gen
+
+  outbreaks = outbreaks + 1
+  p11 <- p11 + geom_line(data = strain_data_now, aes(x = generation, y=seed0, color='seed0', alpha = 0.35)) +
+  geom_line(data = strain_data_now, aes(x = generation, y=seed1, color='seed1', alpha = 0.35)) +
+  geom_line(data = strain_data_now, aes(x = generation, y=seed2, color='seed2', alpha = 0.35)) +
+  geom_line(data = strain_data_now, aes(x = generation, y=seed3, color='seed3', alpha = 0.35)) +
+  geom_line(data = strain_data_now, aes(x = generation, y=seed4, color='seed4', alpha = 0.35))
+  strain_data <- rbind(strain_data, strain_data_now)
+}
+
+avg_s0 = c()
+avg_s1 = c()
+avg_s2 = c()
+avg_s3 = c()
+avg_s4 = c()
+
+for (i in 1:length_gen)
+{
+  avg_s0 = c(avg_s0, sum(strain_data[strain_data$generation==i,]$seed0) / outbreaks)
+  avg_s1 = c(avg_s1, sum(strain_data[strain_data$generation==i,]$seed1) / outbreaks)
+  avg_s2 = c(avg_s2, sum(strain_data[strain_data$generation==i,]$seed2) / outbreaks)
+  avg_s3 = c(avg_s3, sum(strain_data[strain_data$generation==i,]$seed3) / outbreaks)
+  avg_s4 = c(avg_s4, sum(strain_data[strain_data$generation==i,]$seed4) / outbreaks)
+}
+
+p11 <- p11 + geom_line(aes(x=1:length_gen, y=avg_s0, color='seed0'), size=2) + 
+  geom_line(aes(x=1:length_gen, y=avg_s1, color='seed1'), size=2) + geom_line(aes(x=1:length_gen, y=avg_s2, color="seed2"), size=2) + geom_line(aes(x=1:length_gen, y=avg_s3, color='seed3'), size=2) + geom_line(aes(x=1:length_gen, y=avg_s4, color='seed4'), size=2) +
+  theme_bw() + theme(panel.grid=element_blank(), axis.title.x = element_text(size = 16),
+  axis.text.x = element_text(size = 14),
+  axis.text.y = element_text(size = 14),
+  axis.title.y = element_text(size = 16),
+  legend.text=element_text(size=12),
+  legend.title=element_text(size=13), 
+  legend.position="none") +
+  xlim(NA, 3650) + labs(x="Years",y="Size of the progeny") + guides(alpha="none") +
+    scale_x_continuous(expand = c(0, 0), breaks=365 * (1:9), 
+                     labels = 1:9) +  # Remove x-axis padding
+    scale_y_continuous(expand = c(0, 0))
+
+p11
+
+
+
+#suppressWarnings(print(p1))
+suppressWarnings(ggsave("/Users/px54/Documents/TB_software/manuscript_test/strain_BAhighhigh.pdf", plot = p11, width = 4, height = 3.5, dpi = 300))
+
+```
+
+
+Plot the data (BA_highlow)
+```{R}
+path_main = "/Users/px54/Documents/TB_software/manuscript_test/example2/BA_highlow/"
+
+
+strain_data <- read.csv(paste0(path_main, "1/strain_trajectory.csv.gz"), header = F, sep = ",")
+colnames(strain_data) <- c("seed0", "seed1", "seed2", "seed3", "seed4")
+
+strain_data <- rbind(strain_default, strain_data)
+
+length_gen = nrow(strain_data)
+strain_data$rep = rep(1, length_gen)
+strain_data$generation = 1:length_gen
+p12 <- ggplot(strain_data) + 
+    scale_color_manual(name='States',
+                     breaks=c('seed0', 'seed1', 'seed2', 'seed3', 'seed4'),
+                     values=c('seed0'=colorcode[1],'seed1'=colorcode[2], 'seed2'=colorcode[3], 'seed3'=colorcode[4], 'seed4'=colorcode[5])) +
+  geom_line(data = strain_data, aes(x = generation, y=seed0, color='seed0', alpha = 0.35)) +
+  geom_line(data = strain_data, aes(x = generation, y=seed1, color='seed1', alpha = 0.35)) +
+  geom_line(data = strain_data, aes(x = generation, y=seed2, color='seed2', alpha = 0.35)) +
+  geom_line(data = strain_data, aes(x = generation, y=seed3, color='seed3', alpha = 0.35)) +
+  geom_line(data = strain_data, aes(x = generation, y=seed4, color='seed4', alpha = 0.35))
+
+outbreaks = 1
+for (sim in 2:sim_size)
+{
+  strain_data_now <- read.csv(paste0(path_main, sim, "/strain_trajectory.csv.gz"), header = F, sep = ",")
+  colnames(strain_data_now) <- c("seed0", "seed1", "seed2", "seed3", "seed4")
+  strain_data_now <- rbind(strain_default, strain_data_now)
+  length_gen = nrow(strain_data_now)
+  strain_data_now$rep = rep(sim, nrow(strain_data_now))
+  strain_data_now$generation = 1:length_gen
+
+  outbreaks = outbreaks + 1
+  p12 <- p12 + geom_line(data = strain_data_now, aes(x = generation, y=seed0, color='seed0', alpha = 0.35)) +
+  geom_line(data = strain_data_now, aes(x = generation, y=seed1, color='seed1', alpha = 0.35)) +
+  geom_line(data = strain_data_now, aes(x = generation, y=seed2, color='seed2', alpha = 0.35)) +
+  geom_line(data = strain_data_now, aes(x = generation, y=seed3, color='seed3', alpha = 0.35)) +
+  geom_line(data = strain_data_now, aes(x = generation, y=seed4, color='seed4', alpha = 0.35))
+  strain_data <- rbind(strain_data, strain_data_now)
+}
+
+avg_s0 = c()
+avg_s1 = c()
+avg_s2 = c()
+avg_s3 = c()
+avg_s4 = c()
+
+for (i in 1:length_gen)
+{
+  avg_s0 = c(avg_s0, sum(strain_data[strain_data$generation==i,]$seed0) / outbreaks)
+  avg_s1 = c(avg_s1, sum(strain_data[strain_data$generation==i,]$seed1) / outbreaks)
+  avg_s2 = c(avg_s2, sum(strain_data[strain_data$generation==i,]$seed2) / outbreaks)
+  avg_s3 = c(avg_s3, sum(strain_data[strain_data$generation==i,]$seed3) / outbreaks)
+  avg_s4 = c(avg_s4, sum(strain_data[strain_data$generation==i,]$seed4) / outbreaks)
+}
+
+p12 <- p12 + geom_line(aes(x=1:length_gen, y=avg_s0, color='seed0'), size=2) + 
+  geom_line(aes(x=1:length_gen, y=avg_s1, color='seed1'), size=2) + geom_line(aes(x=1:length_gen, y=avg_s2, color="seed2"), size=2) + geom_line(aes(x=1:length_gen, y=avg_s3, color='seed3'), size=2) + geom_line(aes(x=1:length_gen, y=avg_s4, color='seed4'), size=2) +
+  theme_bw() + theme(panel.grid=element_blank(), axis.title.x = element_text(size = 16),
+  axis.text.x = element_text(size = 14),
+  axis.text.y = element_text(size = 14),
+  axis.title.y = element_text(size = 16),
+  legend.text=element_text(size=12),
+  legend.title=element_text(size=13), 
+  legend.position="none") +
+  xlim(NA, 3650) + labs(x="Years",y="Size of the progeny") + guides(alpha="none") +
+    scale_x_continuous(expand = c(0, 0), breaks=365 * (1:9), 
+                     labels = 1:9) +  # Remove x-axis padding
+    scale_y_continuous(expand = c(0, 0))
+
+p12
+
+
+
+#suppressWarnings(print(p1))
+suppressWarnings(ggsave("/Users/px54/Documents/TB_software/manuscript_test/strain_BAhighlow.pdf", plot = p12, width = 4, height = 3.5, dpi = 300))
+
+```
+
+
+Draw the runtime profiling plot
+```{R}
+time_all_df = data.frame(rep_id=c(), popsize=c(), relasamp=c(), time=c())
+pops = c("10000", "25000", "50000", "75000", "100000")
+avgsizes = c(1, 5, 10)
+for (pop in pops)
+{
+  for (avgsize in avgsizes)
+  {
+    timefile = file.path("/Users/px54/Documents/TB_software/manuscript_test/perform_bchmk", 
+                  paste0(c("COVID_ER_", pop), collapse=""), paste0(c("times_", avgsize, ".txt"), collapse=""))
+    time_df = read.table(timefile, header=F, sep=" ")
+    if ((pop=="10000") & (avgsize <6))
+    {
+      time_df_now = data.frame(rep_id=1:10, popsize=rep(as.integer(pop), 10), relasamp=rep(avgsize, 10), time=time_df$V13)
+    }
+    else
+    {
+      time_df_now = data.frame(rep_id=1:10, popsize=rep(as.integer(pop), 10), relasamp=rep(avgsize, 10), time=period_to_seconds(ms(time_df$V13)))
+    }
+    time_all_df = rbind(time_all_df, time_df_now)
+  }
+}
+time_all_df$popsize = as.factor(time_all_df$popsize)
+
+p13 <- ggplot(time_all_df, aes(x=relasamp, y=time, color=popsize)) + geom_point(alpha=0.3) + 
+   stat_summary(aes(group=popsize), fun.y=mean, geom="line") +
+  theme_bw() + theme(panel.grid=element_blank(), axis.title.x = element_text(size = 16),
+  axis.text.x = element_text(size = 14),
+  axis.text.y = element_text(size = 14),
+  axis.title.y = element_text(size = 16),
+  legend.text=element_text(size=12),
+  legend.title=element_text(size=13)) +
+  labs(x="Expected sample size each generation",y="Run Time (s)")+
+  scale_x_continuous(breaks=c(1, 5, 10), minor_breaks = seq(1, 10, by = 1), guide = "axis_minor") + 
+  scale_y_continuous(breaks=c(0, 250, 500, 750, 1000), minor_breaks = seq(0, 1000, by = 50), guide = "axis_minor") + 
+  guides(color=guide_legend("Host population size"))
+
+suppressWarnings(ggsave("/Users/px54/Documents/TB_software/manuscript_test/runtime.pdf", plot = p13, width = 7, height = 3.5, dpi = 300))
+```
+
+
+
+
+
+
+
+
+
+
